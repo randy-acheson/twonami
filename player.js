@@ -16,8 +16,6 @@ function playVideo(videoSrc, seekTime) {
 	if (!seekTime) seekTime = 0;
     // Create a new video element
     var video = document.createElement("video");
-    video.width = 640;
-    video.height = 360;
     video.controls = true;
 	video.autoplay = true;
 	video.muted = true;

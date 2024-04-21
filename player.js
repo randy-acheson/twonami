@@ -1,19 +1,41 @@
-var video1Info = {
-	"file": "videos/forest-25s.mp4",
-	"length": 24.9,
-	"position": 0
-}
-var video2Info = {
-	"file": "videos/earth-25s.mp4",
-	"length": 25,
-	"position": 1
+var isPlaying = false;
+
+async function init()
+{
+	let lineup = await loadLineup();
+
+	updateDateTime();
+	setInterval(updateDateTime, 1000);
+
+	tryBeginVideo(lineup);
+	setInterval(() => tryBeginVideo(lineup), 1000);
 }
 
-var videos = [video1Info, video2Info];
+async function loadLineup() {
+	return await fetch("lineup.json")
+	.then((res) => {
+		if (!res.ok) {
+			throw new Error("Error reading lineup " + res.status);
+		}
+		return res.json();
+	})
+	.then((file) => {
+		for(var idx in file["lineup"]) {
+			var episode = file["lineup"][idx];
+			episode.startTime = new Date(episode.startTime)
+			var endTimeEpoch = episode.startTime.getTime() + (episode.lengthSeconds * 1000);
+			episode.endTime = new Date(endTimeEpoch);
+		}
+		return file["lineup"];
+	})
+	.catch((e) => console.error(e))
+}
 
 // Function to create and play a video
-function playVideo(videoSrc, seekTime) {
-	if (!seekTime) seekTime = 0;
+function playVideo(episode) {
+	isPlaying = true;
+	var seekTime = Math.abs(new Date() - episode.startTime) / 1000;
+
     // Create a new video element
     var video = document.createElement("video");
     video.controls = true;
@@ -23,7 +45,7 @@ function playVideo(videoSrc, seekTime) {
 
     // Create a source element for the video
     var source = document.createElement("source");
-    source.src = videoSrc;
+    source.src = "videos/" + episode.fileName;
     source.type = "video/mp4";
 
     // Append the source element to the video element
@@ -31,7 +53,7 @@ function playVideo(videoSrc, seekTime) {
 
     // Append the video element to the video container
 	var fileName = document.getElementById("fileName");
-	fileName.innerHTML = videoSrc;
+	fileName.innerHTML = episode.fileName;
 
 	var videoContainer = document.getElementById("videoContainer");
 	videoContainer.innerHTML = '';
@@ -44,37 +66,36 @@ function playVideo(videoSrc, seekTime) {
     video.play();
 }
 
-function tryPlayVideo() {
-	var d = new Date();
-	var seconds = d.getSeconds();
+function tryBeginVideo(lineup) {
+	if (isPlaying) {
+		return;
+	}
 
-	if (seconds % 30 === 0) {
-		selectVideo();
+	var maybeEpisode = getEpisode(lineup);
+
+	if (maybeEpisode) {
+		playVideo(maybeEpisode);
 	}
 }
 
-function selectVideo() {
+function getEpisode(lineup) {
 	var d = new Date();
-	var secondsPastMinute = d.getSeconds();
-	
-	var whichVideo = 0;
-	if (secondsPastMinute >= 30) whichVideo = 1;
-	
-	var currVideo = videos[0]
-	for (const video of videos) {
-		if (video["position"] === whichVideo) {
-			currVideo = video;
-			break;
+	for (var idx in lineup) {
+		if (lineup[idx].startTime.getTime() < d.getTime() && d.getTime() < lineup[idx].endTime.getTime()) {
+			return lineup[idx];
 		}
 	}
 
-	playVideo(currVideo["file"], secondsPastMinute % 30);
+	return null;
 }
 
 function handleVideoPlay() {
+	// TODO: On resume, seek to current time
 }
 
 function handleVideoEnd() {
+	isPlaying = false;
+
 	var fileName = document.getElementById("fileName");
 	fileName.innerHTML = "Now Loading";
 
@@ -89,10 +110,4 @@ function updateDateTime() {
 	document.getElementById("datetime").innerHTML = formattedDateTime;
 }
 
-updateDateTime();
-setInterval(updateDateTime, 1000);
-
-setInterval(tryPlayVideo, 1000);
-
-selectVideo();
-
+init();
